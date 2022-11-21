@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.9" tiledversion="1.9.2" orientation="orthogonal" renderorder="right-down" width="100" height="100" tilewidth="32" tileheight="32" infinite="0" nextlayerid="3" nextobjectid="1">
- <tileset firstgid="1" source="../../websocket-game/maps/snowy-sheet.tsx"/>
+ <tileset firstgid="1" source="snowy-sheet.tsx"/>
  <tileset firstgid="65" source="snowy-sheet.tsx"/>
  <layer id="1" name="ground" width="100" height="100">
   <data encoding="csv">
