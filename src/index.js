@@ -143,6 +143,11 @@ async function main() {
       player.isMuted = isMuted;
     });
 
+    socket.on("voiceId", (voiceId) => {
+      const player = players.find((player) => player.id === socket.id);
+      player.voiceId = voiceId;
+    });
+
     socket.on("snowball", (angle) => {
       const player = players.find((player) => player.id === socket.id);
       snowballs.push({

@@ -25,8 +25,10 @@ const localTracks = {
 let isPlaying = true;
 
 const remoteUsers = {};
+window.remoteUsers = remoteUsers;
 
 const muteButton = document.getElementById("mute");
+const uid = Math.floor(Math.random() * 1000000);
 
 muteButton.addEventListener("click", () => {
   if (isPlaying) {
@@ -44,7 +46,7 @@ muteButton.addEventListener("click", () => {
 const options = {
   appid: "eee1672fa7ef4b83bc7810da003a07bb",
   channel: "game",
-  uid: null,
+  uid,
   token: null,
 };
 
@@ -63,21 +65,19 @@ function handleUserPublished(user, mediaType) {
 
 function handleUserUnpublished(user) {
   const id = user.uid;
-  console.log("unsubscribe", id);
   delete remoteUsers[id];
 }
 
 async function join() {
+  socket.emit("voiceId", uid);
+
   client.on("user-published", handleUserPublished);
   client.on("user-unpublished", handleUserUnpublished);
 
-  [options.uid, localTracks.audioTrack] = await Promise.all([
-    client.join(options.appid, options.channel, options.token || null),
-    AgoraRTC.createMicrophoneAudioTrack(),
-  ]);
+  await client.join(options.appid, options.channel, options.token || null, uid);
+  localTracks.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
 
   await client.publish(Object.values(localTracks));
-  console.log("publish success");
 }
 
 join();
@@ -97,7 +97,6 @@ socket.on("connect", () => {
 socket.on("map", (loadedMap) => {
   groundMap = loadedMap.ground;
   decalMap = loadedMap.decal;
-  console.log("decalMap", decalMap);
 });
 
 socket.on("players", (serverPlayers) => {
@@ -218,6 +217,21 @@ function loop() {
         player.x - cameraX + 5,
         player.y - cameraY - 28
       );
+    }
+
+    if (player !== myPlayer) {
+      if (
+        remoteUsers[player.voiceId] &&
+        remoteUsers[player.voiceId].audioTrack
+      ) {
+        const distance = Math.sqrt(
+          (player.x - myPlayer.x) ** 2 + (player.x - myPlayer.y) ** 2
+        );
+        const ratio = 1.0 - Math.min(distance / 700, 1);
+        remoteUsers[player.voiceId].audioTrack.setVolume(
+          Math.floor(ratio * 100)
+        );
+      }
     }
   }
 
