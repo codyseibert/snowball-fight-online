@@ -9,19 +9,34 @@ async function loadMap() {
   });
 
   const layer = map.layers[0];
-  const tiles = layer.tiles;
-  const map2D = [];
+  const groundTiles = layer.tiles;
+  const decalTiles = map.layers[1].tiles;
+  const ground2D = [];
+  const decal2D = [];
   for (let row = 0; row < map.height; row++) {
-    const tileRow = [];
+    const groundRow = [];
+    const decalRow = [];
     for (let col = 0; col < map.width; col++) {
-      const tile = tiles[row * map.height + col];
-      console.log(tile);
-      tileRow.push({ id: tile.id, gid: tile.gid });
+      const groundTile = groundTiles[row * map.height + col];
+      groundRow.push({ id: groundTile.id, gid: groundTile.gid });
+      const decalTile = decalTiles[row * map.height + col];
+      if (decalTile) {
+        decalRow.push({
+          id: decalTile.id,
+          gid: decalTile.gid,
+        });
+      } else {
+        decalRow.push(undefined);
+      }
     }
-    map2D.push(tileRow);
+    ground2D.push(groundRow);
+    decal2D.push(decalRow);
   }
 
-  return map2D;
+  return {
+    ground2D,
+    decal2D,
+  };
 }
 
 module.exports = loadMap;

@@ -4,6 +4,11 @@ mapImage.src = "/snowy-sheet.png";
 const santaImage = new Image();
 santaImage.src = "/santa.png";
 
+const speakerImage = new Image();
+speakerImage.src = "/speaker.png";
+
+const walkSnow = new Audio("walk-snow.mp3");
+
 const canvasEl = document.getElementById("canvas");
 canvasEl.width = window.innerWidth;
 canvasEl.height = window.innerHeight;
@@ -11,18 +16,88 @@ const canvas = canvasEl.getContext("2d");
 
 const socket = io(`ws://localhost:5000`);
 
-let map = [[]];
+const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+
+const localTracks = {
+  audioTrack: null,
+};
+
+let isPlaying = true;
+
+const remoteUsers = {};
+
+const muteButton = document.getElementById("mute");
+
+muteButton.addEventListener("click", () => {
+  if (isPlaying) {
+    localTracks.audioTrack.setEnabled(false);
+    muteButton.innerText = "unmute";
+    socket.emit("mute", true);
+  } else {
+    localTracks.audioTrack.setEnabled(true);
+    muteButton.innerText = "mute";
+    socket.emit("mute", false);
+  }
+  isPlaying = !isPlaying;
+});
+
+const options = {
+  appid: "eee1672fa7ef4b83bc7810da003a07bb",
+  channel: "game",
+  uid: null,
+  token: null,
+};
+
+async function subscribe(user, mediaType) {
+  await client.subscribe(user, mediaType);
+  if (mediaType === "audio") {
+    user.audioTrack.play();
+  }
+}
+
+function handleUserPublished(user, mediaType) {
+  const id = user.uid;
+  remoteUsers[id] = user;
+  subscribe(user, mediaType);
+}
+
+function handleUserUnpublished(user) {
+  const id = user.uid;
+  console.log("unsubscribe", id);
+  delete remoteUsers[id];
+}
+
+async function join() {
+  client.on("user-published", handleUserPublished);
+  client.on("user-unpublished", handleUserUnpublished);
+
+  [options.uid, localTracks.audioTrack] = await Promise.all([
+    client.join(options.appid, options.channel, options.token || null),
+    AgoraRTC.createMicrophoneAudioTrack(),
+  ]);
+
+  await client.publish(Object.values(localTracks));
+  console.log("publish success");
+}
+
+join();
+
+let groundMap = [[]];
+let decalMap = [[]];
 let players = [];
 let snowballs = [];
 
-const TILE_SIZE = 16;
+const TILE_SIZE = 32;
+const SNOWBALL_RADIUS = 5;
 
 socket.on("connect", () => {
   console.log("connected");
 });
 
 socket.on("map", (loadedMap) => {
-  map = loadedMap;
+  groundMap = loadedMap.ground;
+  decalMap = loadedMap.decal;
+  console.log("decalMap", decalMap);
 });
 
 socket.on("players", (serverPlayers) => {
@@ -50,6 +125,9 @@ window.addEventListener("keydown", (e) => {
   } else if (e.key === "a") {
     inputs["left"] = true;
   }
+  if (["a", "s", "w", "d"].includes(e.key) && walkSnow.paused) {
+    // walkSnow.play();
+  }
   socket.emit("inputs", inputs);
 });
 
@@ -62,6 +140,10 @@ window.addEventListener("keyup", (e) => {
     inputs["right"] = false;
   } else if (e.key === "a") {
     inputs["left"] = false;
+  }
+  if (["a", "s", "w", "d"].includes(e.key)) {
+    walkSnow.pause();
+    walkSnow.currentTime = 0;
   }
   socket.emit("inputs", inputs);
 });
@@ -87,9 +169,10 @@ function loop() {
 
   const TILES_IN_ROW = 8;
 
-  for (let row = 0; row < map.length; row++) {
-    for (let col = 0; col < map[0].length; col++) {
-      const { id } = map[row][col];
+  // ground
+  for (let row = 0; row < groundMap.length; row++) {
+    for (let col = 0; col < groundMap[0].length; col++) {
+      let { id } = groundMap[row][col];
       const imageRow = parseInt(id / TILES_IN_ROW);
       const imageCol = id % TILES_IN_ROW;
       canvas.drawImage(
@@ -106,14 +189,48 @@ function loop() {
     }
   }
 
+  // decals
+  for (let row = 0; row < decalMap.length; row++) {
+    for (let col = 0; col < decalMap[0].length; col++) {
+      let { id } = decalMap[row][col] ?? { id: undefined };
+      const imageRow = parseInt(id / TILES_IN_ROW);
+      const imageCol = id % TILES_IN_ROW;
+
+      canvas.drawImage(
+        mapImage,
+        imageCol * TILE_SIZE,
+        imageRow * TILE_SIZE,
+        TILE_SIZE,
+        TILE_SIZE,
+        col * TILE_SIZE - cameraX,
+        row * TILE_SIZE - cameraY,
+        TILE_SIZE,
+        TILE_SIZE
+      );
+    }
+  }
+
   for (const player of players) {
     canvas.drawImage(santaImage, player.x - cameraX, player.y - cameraY);
+    if (!player.isMuted) {
+      canvas.drawImage(
+        speakerImage,
+        player.x - cameraX + 5,
+        player.y - cameraY - 28
+      );
+    }
   }
 
   for (const snowball of snowballs) {
     canvas.fillStyle = "#FFFFFF";
     canvas.beginPath();
-    canvas.arc(snowball.x - cameraX, snowball.y - cameraY, 3, 0, 2 * Math.PI);
+    canvas.arc(
+      snowball.x - cameraX,
+      snowball.y - cameraY,
+      SNOWBALL_RADIUS,
+      0,
+      2 * Math.PI
+    );
     canvas.fill();
   }
 
