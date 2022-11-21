@@ -225,7 +225,7 @@ function loop() {
         remoteUsers[player.voiceId].audioTrack
       ) {
         const distance = Math.sqrt(
-          (player.x - myPlayer.x) ** 2 + (player.x - myPlayer.y) ** 2
+          (player.x - myPlayer.x) ** 2 + (player.y - myPlayer.y) ** 2
         );
         const ratio = 1.0 - Math.min(distance / 700, 1);
         remoteUsers[player.voiceId].audioTrack.setVolume(
